@@ -17,42 +17,46 @@ function GalleryPage() {
 
   const { selectedPetIds, selectedCount, selectMany, clearSelection } =
     useSelection();
-
+  const [showSelectedOnly, setShowSelectedOnly] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sortOption, setSortOption] = useState<SortOption>('name-asc');
   const [currentPage, setCurrentPage] = useState<number>(1);
 // Search first, then sort the filtered results before pagination is applied.
-  const filteredAndSortedPets = useMemo(() => {
-    const normalizedSearchTerm = searchTerm.toLowerCase().trim();
+ const filteredAndSortedPets = useMemo(() => {
+  const normalizedSearchTerm = searchTerm.toLowerCase().trim();
 
-    const searchedPets = normalizedSearchTerm
-      ? pets.filter((pet) => {
-          const title = pet.title.toLowerCase();
-          const description = pet.description.toLowerCase();
+  const selectedFilteredPets = showSelectedOnly
+    ? pets.filter((pet) => selectedPetIds.includes(pet.id))
+    : pets;
 
-          return (
-            title.includes(normalizedSearchTerm) ||
-            description.includes(normalizedSearchTerm)
-          );
-        })
-      : pets;
+  const searchedPets = normalizedSearchTerm
+    ? selectedFilteredPets.filter((pet) => {
+        const title = pet.title.toLowerCase();
+        const description = pet.description.toLowerCase();
 
-    return [...searchedPets].sort((a, b) => {
-      if (sortOption === 'name-asc') {
-        return a.title.localeCompare(b.title);
-      }
+        return (
+          title.includes(normalizedSearchTerm) ||
+          description.includes(normalizedSearchTerm)
+        );
+      })
+    : selectedFilteredPets;
 
-      if (sortOption === 'name-desc') {
-        return b.title.localeCompare(a.title);
-      }
+  return [...searchedPets].sort((a, b) => {
+    if (sortOption === 'name-asc') {
+      return a.title.localeCompare(b.title);
+    }
 
-      if (sortOption === 'date-newest') {
-        return new Date(b.created).getTime() - new Date(a.created).getTime();
-      }
+    if (sortOption === 'name-desc') {
+      return b.title.localeCompare(a.title);
+    }
 
-      return new Date(a.created).getTime() - new Date(b.created).getTime();
-    });
-  }, [pets, searchTerm, sortOption]);
+    if (sortOption === 'date-newest') {
+      return new Date(b.created).getTime() - new Date(a.created).getTime();
+    }
+
+    return new Date(a.created).getTime() - new Date(b.created).getTime();
+  });
+}, [pets, searchTerm, sortOption, showSelectedOnly, selectedPetIds]);
 
   const totalPages = Math.ceil(filteredAndSortedPets.length / PETS_PER_PAGE);
 // Pagination is applied after search and sort so the visible page matches the current filters.
@@ -63,6 +67,10 @@ function GalleryPage() {
     return filteredAndSortedPets.slice(startIndex, endIndex);
   }, [filteredAndSortedPets, currentPage]);
 
+  function handleToggleSelectedOnly(): void {
+  setShowSelectedOnly((currentValue) => !currentValue);
+  setCurrentPage(1);
+}
   const selectedPets = useMemo(() => {
     return pets.filter((pet) => selectedPetIds.includes(pet.id));
   }, [pets, selectedPetIds]);
@@ -145,15 +153,24 @@ function GalleryPage() {
       </Hero>
 
       <Toolbar>
-        <SearchBar value={searchTerm} onChange={handleSearchChange} />
+  <SearchBar value={searchTerm} onChange={handleSearchChange} />
 
-        <SortDropdown value={sortOption} onChange={handleSortChange} />
+  <SortDropdown value={sortOption} onChange={handleSortChange} />
 
-        <ResultPill>
-          Showing <strong>{paginatedPets.length}</strong> of{' '}
-          <strong>{filteredAndSortedPets.length}</strong>
-        </ResultPill>
-      </Toolbar>
+  <ToggleButton
+    type="button"
+    onClick={handleToggleSelectedOnly}
+    $isActive={showSelectedOnly}
+    disabled={selectedCount === 0 && !showSelectedOnly}
+  >
+    {showSelectedOnly ? 'Show All Pets' : 'Show Selected Only'}
+  </ToggleButton>
+
+  <ResultPill>
+    Showing <strong>{paginatedPets.length}</strong> of{' '}
+    <strong>{filteredAndSortedPets.length}</strong>
+  </ResultPill>
+</Toolbar>
 
       <SelectionToolbar
         selectedCount={selectedCount}
@@ -163,9 +180,13 @@ function GalleryPage() {
         onDownloadSelected={handleDownloadSelected}
       />
 
-      {filteredAndSortedPets.length === 0 ? (
-        <StateCard>No pets match your search.</StateCard>
-      ) : (
+    {filteredAndSortedPets.length === 0 ? (
+  <StateCard>
+    {showSelectedOnly
+      ? 'No selected pets match the current search.'
+      : 'No pets match your search.'}
+  </StateCard>
+) : (
         <>
           <PetGrid>
             {paginatedPets.map((pet) => (
@@ -273,7 +294,7 @@ const Toolbar = styled.section`
   margin-bottom: 22px;
 
   @media (min-width: 760px) {
-    grid-template-columns: 1fr 260px auto;
+    grid-template-columns: 1fr 260px auto auto;
   }
 `;
 
@@ -320,4 +341,35 @@ const StateCard = styled.p`
   font-weight: 700;
   text-align: center;
   box-shadow: 0 18px 45px rgba(31, 41, 51, 0.08);
+`;
+
+const ToggleButton = styled.button<{ $isActive: boolean }>`
+  border: 1px solid
+    ${({ $isActive }) =>
+      $isActive ? 'rgba(108, 99, 255, 0.8)' : 'rgba(31, 41, 51, 0.09)'};
+  border-radius: 999px;
+  padding: 12px 16px;
+  background: ${({ $isActive }) => ($isActive ? '#6c63ff' : '#ffffff')};
+  color: ${({ $isActive }) => ($isActive ? '#ffffff' : '#17202a')};
+  font-size: 0.9rem;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: ${({ $isActive }) =>
+    $isActive
+      ? '0 14px 30px rgba(108, 99, 255, 0.22)'
+      : '0 12px 28px rgba(31, 41, 51, 0.07)'};
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
 `;
